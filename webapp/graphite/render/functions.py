@@ -44,6 +44,11 @@ def safeSum(values):
   if safeValues:
     return sum(safeValues)
 
+def safeNoneSum(values):
+  for v in values: 
+    if v is None: return None
+  return sum(values)
+
 def safeDiff(values):
   safeValues = [v for v in values if v is not None]
   if safeValues:
@@ -164,6 +169,37 @@ def sumSeries(requestContext, *seriesLists):
     return []
   name = "sumSeries(%s)" % formatPathExpressions(seriesList)
   values = ( safeSum(row) for row in izip(*seriesList) )
+  series = TimeSeries(name,start,end,step,values)
+  series.pathExpression = name
+  return [series]
+
+def sumSeriesWithoutNone(requestContext, *seriesLists):
+  """
+  This will add metrics together and return the sum at each datapoint. (See
+  integral for a sum over time)
+
+  If one of the summed values is None, all values will be None.
+
+  Example:
+
+  .. code-block:: none
+
+    &target=sum(company.server.application*.requestsHandled)
+
+  This would show the sum of all requests handled per minute (provided
+  requestsHandled are collected once a minute).   If metrics with different
+  retention rates are combined, the coarsest metric is graphed, and the sum
+  of the other metrics is averaged for the metrics with finer retention rates.
+
+  """
+
+  try:
+    (seriesList,start,end,step) = normalize(seriesLists)
+  except:
+    return []
+  #name = "sumSeries(%s)" % ','.join((s.name for s in seriesList))
+  name = "sumSeriesWithoutNone(%s)" % ','.join(set([s.pathExpression for s in seriesList]))
+  values = ( safeNoneSum(row) for row in izip(*seriesList) )
   series = TimeSeries(name,start,end,step,values)
   series.pathExpression = name
   return [series]
@@ -2723,6 +2759,7 @@ PieFunctions = {
 SeriesFunctions = {
   # Combine functions
   'sumSeries' : sumSeries,
+  'sumSeriesWithoutNone' : sumSeriesWithoutNone,
   'sum' : sumSeries,
   'multiplySeries' : multiplySeries,
   'averageSeries' : averageSeries,
